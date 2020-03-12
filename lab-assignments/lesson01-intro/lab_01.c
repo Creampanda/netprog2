@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 	{
 
 		char inputStr[500];
-		printf("Enter the expression:\n");
+		printf("Enter the expression (+,-,*,\\):\n");
 		fgets(inputStr, sizeof(inputStr), stdin);
 
 		while (strchr(inputStr, '*'))
