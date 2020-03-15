@@ -8,7 +8,6 @@
 #include <errno.h>
 #include <assert.h>
 #include <stdbool.h>
-#include <locale.h>
 
 #define BUF_SIZE 128
 
@@ -51,18 +50,20 @@ static int run_ls(const char *pattern)
  */
 static int run_echo(const char *file_name, const char *echo_data)
 {
-    FILE* fp;
-    fp = fopen(file_name, "w");
+    FILE *fp;
+
+    fp = fopen(file_name,"w");
     if (fp == NULL)
     {
-        printf("Couldn't open %s for writing\n", file_name);
+        printf("Can't open %s for writing", file_name);
     }
     else
     {
-        fprintf(fp, "%s", echo_data);
+        fputs(echo_data, fp);
+        fprintf(fp,"\n");
         fclose(fp);
     }
-    return 0;
+	return 0;
 }
 
 /*
@@ -71,24 +72,28 @@ static int run_echo(const char *file_name, const char *echo_data)
  */
 static int run_cat(const char *file_name)
 {
-    FILE* fp;
-    fp = fopen(file_name, "r");
+
+	FILE *fp;
+
+    fp = fopen(file_name,"r");
     if (fp == NULL)
     {
-        printf("Couldn't open %s for reading\n", file_name);
+        printf("Can't open %s for reading", file_name);
     }
     else
     {
-        char strFromFile[BUF_SIZE];
+        char stringFromFile[BUF_SIZE];
         while (!feof(fp))
         {
-	    fgets(strFromFile,BUF_SIZE,fp);
-            printf("%s", strFromFile);
+            fgets(stringFromFile, BUF_SIZE, fp);
+            fprintf(stdout,"%s", stringFromFile);
+            stringFromFile[0] = '\0';
         }
-	printf("\n");
-    fclose(fp);
+        fclose(fp);
     }
-    return 0;
+    
+
+	return 0;
 }
 
 static int run_touch(const char *file_name)
@@ -108,9 +113,8 @@ static int run_touch(const char *file_name)
 
 static int parse_command(const char *command)
 {
-	char cmd_data[BUF_SIZE], file_name[BUF_SIZE];
+	char cmd_data[BUF_SIZE], echo_data[BUF_SIZE], file_name[BUF_SIZE];
 	int ret;
-	char echo_data[BUF_SIZE];
 
 	ret = sscanf(command, "touch %s", file_name);
 	if (ret == 1)
@@ -118,32 +122,44 @@ static int parse_command(const char *command)
 
 	ret = sscanf(command, "cat %s", file_name);
 	if (ret == 1)
-		return run_cat(file_name);
+		return run_cat(file_name);	
 
-	ret = sscanf(command, "echo %s", cmd_data);
-	if (ret == 1)
-	{
-		char *srcPtr;
-		srcPtr = strchr(command, ' ');
-		size_t i = 0;
+    ret = sscanf(command, "echo %s", cmd_data);
+    if (ret == 1)
+    {
+        char *srcPointer = strchr(command, ' ');
+        while (*(++srcPointer) == ' ');
+        size_t i = 0;
+        for (; *srcPointer!= '>' ; i++, srcPointer++)
+        {
+            if (*srcPointer == '\\')
+            {
+                ++srcPointer;
+                if (*srcPointer == 'n')
+                {
+                    echo_data[i] = '\n';
+                } else if (*srcPointer == 'b')
+                {
+                  i-=2;
+                } else
+                {
+                    --srcPointer;
+                }
+            } else
+            {
+                echo_data[i] = *srcPointer;
+            }
+        }
+        echo_data[i] = '\0';
+        while (*(++srcPointer) == ' ');
 
-		while (*(++srcPtr) == ' ')
-			;
-		for (; *srcPtr != '>'; i++)
-		{
-			echo_data[i] = *(srcPtr++);
-		}
-		echo_data[i] = '\n';
-		while (*(++srcPtr) == ' ')
-			;
-		i = 0;
-		for (; *srcPtr != '\n'; ++srcPtr)
-		{
-			file_name[i++] = *srcPtr;
-		}
-		file_name[i] = '\0';
-		return run_echo(file_name, echo_data);
-	}
+        for (i = 0; *srcPointer != '\n' && *srcPointer != ' '; i++, srcPointer++)
+        {
+            file_name[i] = *srcPointer;
+        }
+        return run_echo(file_name, echo_data);        
+    }
+    
 
 	fprintf(stderr, "Unknown command '%s'\n", command);
 	return 0;
@@ -151,17 +167,21 @@ static int parse_command(const char *command)
 
 int main(int argc, char *argv[])
 {
-	setlocale(LC_ALL, "Rus");
 	char command[BUF_SIZE];
+	int ret;
 
 	while (1) {
-		fgets(command, BUF_SIZE, stdin);
-		int ret = parse_command(command);
+		ret = read(STDIN_FILENO, command, sizeof(command) - 1);
 		if (ret < 0) {
 			fprintf(stderr, "Failed to read command from stdin: %s\n",
 					strerror(errno));
 			goto on_error;
 		}
+
+		command[ret] = '\0';
+		ret = parse_command(command);
+		if (ret < 0)
+			goto on_error;
 	}
 
 	return 0;
