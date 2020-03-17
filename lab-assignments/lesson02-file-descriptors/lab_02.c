@@ -19,10 +19,80 @@
  */
 static bool match_pattern(const char *filename, const char *pattern)
 {
+    char *patternPointer = strchr(pattern, '*');
+    if (!patternPointer) // "xxx"
+    {
+        return *filename == *pattern;
+    }
+    else if (patternPointer == pattern) // "*-----"
+    {
 
-	/* ... УСЛОЖНЕННАЯ ЗАДАЧА ... */
+        char *patternPointerToRight = patternPointer;
+        ++patternPointerToRight;
 
-	return true;
+        // "*"
+        if (*patternPointerToRight == '\0')
+            return true;
+
+        char newPattern[strlen(pattern)];
+
+        memmove(newPattern, pattern + 1, strlen(pattern));
+        size_t i = strlen(filename);
+        size_t j = strlen(newPattern);
+        while (j > 0)
+        {
+            if (filename[i--] != newPattern[j--])
+            {
+                return false;
+            }
+        }
+        return true;
+    } else 
+    {
+        char *patternPointerToRight = patternPointer;
+        ++patternPointerToRight;
+
+        // "------*"
+        if (*patternPointerToRight == '\0')
+        {
+            char newPattern[strlen(pattern)];
+            
+            memmove(newPattern, pattern, strlen(pattern)-1);
+            newPattern[strlen(pattern) - 1] = '\0';
+            
+            for (size_t i = 0; i < strlen(newPattern); i++)
+            {
+                if (filename[i] != newPattern[i])
+                {
+                    return false;
+                }
+            }
+            return true;
+        } else
+        {
+            for (size_t i = 0; pattern[i] != '*'; i++)
+            {
+                if (filename[i] != pattern[i])
+                {
+                    return false;
+                }
+            }
+            size_t i = strlen(filename);
+            size_t j = strlen(pattern);
+            for (; pattern[j] != '*'; --i, --j)
+            {
+                if (filename[i] != pattern[j])
+                {
+                    return false;
+                }
+            }
+            
+        }
+        
+    }
+    
+
+    return true;
 }
 
 /*
@@ -33,12 +103,24 @@ static bool match_pattern(const char *filename, const char *pattern)
  */
 static int run_ls(const char *pattern)
 {
-	DIR *dir;
-	struct dirent *entry;
-
-	/* ... УСЛОЖНЕННАЯ ЗАДАЧА ... */
-
-	return 0;
+    DIR *dir;
+    struct dirent *entry;
+    dir = opendir("./");
+    if (dir != NULL)
+    {
+        while (entry = readdir(dir))
+        {
+            if (match_pattern(entry->d_name, pattern))
+            {
+                puts(entry->d_name);
+            }
+        }
+        closedir(dir);
+    } else
+    {
+        puts("Couldn't open the directory!");
+    }
+    return 0;
 }
 
 /*
@@ -52,7 +134,7 @@ static int run_echo(const char *file_name, const char *echo_data)
 {
     FILE *fp;
 
-    fp = fopen(file_name,"w");
+    fp = fopen(file_name, "w");
     if (fp == NULL)
     {
         printf("Can't open %s for writing", file_name);
@@ -60,10 +142,10 @@ static int run_echo(const char *file_name, const char *echo_data)
     else
     {
         fputs(echo_data, fp);
-        fprintf(fp,"\n");
+        fprintf(fp, "\n");
         fclose(fp);
     }
-	return 0;
+    return 0;
 }
 
 /*
@@ -73,9 +155,9 @@ static int run_echo(const char *file_name, const char *echo_data)
 static int run_cat(const char *file_name)
 {
 
-	FILE *fp;
+    FILE *fp;
 
-    fp = fopen(file_name,"r");
+    fp = fopen(file_name, "r");
     if (fp == NULL)
     {
         printf("Can't open %s for reading", file_name);
@@ -86,51 +168,56 @@ static int run_cat(const char *file_name)
         while (!feof(fp))
         {
             fgets(stringFromFile, BUF_SIZE, fp);
-            fprintf(stdout,"%s", stringFromFile);
+            fprintf(stdout, "%s", stringFromFile);
             stringFromFile[0] = '\0';
         }
         fclose(fp);
     }
-    
 
-	return 0;
+    return 0;
 }
 
 static int run_touch(const char *file_name)
 {
-	FILE *fp;
+    FILE *fp;
 
-	printf("Executing 'touch' of file %s\n", file_name);
-	fp = fopen(file_name, "a");
-	if (!fp) {
-		fprintf(stderr, "Failed to touch file '%s': %s\n",
-				file_name, strerror(errno));
-		return 0;
-	}
-	fclose(fp);
-	return 0;
+    printf("Executing 'touch' of file %s\n", file_name);
+    fp = fopen(file_name, "a");
+    if (!fp)
+    {
+        fprintf(stderr, "Failed to touch file '%s': %s\n",
+                file_name, strerror(errno));
+        return 0;
+    }
+    fclose(fp);
+    return 0;
 }
 
 static int parse_command(const char *command)
 {
-	char cmd_data[BUF_SIZE], echo_data[BUF_SIZE], file_name[BUF_SIZE];
-	int ret;
+    char cmd_data[BUF_SIZE], echo_data[BUF_SIZE], file_name[BUF_SIZE];
+    int ret;
 
-	ret = sscanf(command, "touch %s", file_name);
-	if (ret == 1)
-		return run_touch(file_name);
+    ret = sscanf(command, "ls %s", cmd_data);
+    if (ret == 1)
+        return run_ls(cmd_data);
 
-	ret = sscanf(command, "cat %s", file_name);
-	if (ret == 1)
-		return run_cat(file_name);	
+    ret = sscanf(command, "touch %s", file_name);
+    if (ret == 1)
+        return run_touch(file_name);
+
+    ret = sscanf(command, "cat %s", file_name);
+    if (ret == 1)
+        return run_cat(file_name);
 
     ret = sscanf(command, "echo %s", cmd_data);
     if (ret == 1)
     {
         char *srcPointer = strchr(command, ' ');
-        while (*(++srcPointer) == ' ');
+        while (*(++srcPointer) == ' ')
+            ;
         size_t i = 0;
-        for (; *srcPointer!= '>' ; i++, srcPointer++)
+        for (; *srcPointer != '>'; i++, srcPointer++)
         {
             if (*srcPointer == '\\')
             {
@@ -138,53 +225,62 @@ static int parse_command(const char *command)
                 if (*srcPointer == 'n')
                 {
                     echo_data[i] = '\n';
-                } else if (*srcPointer == 'b')
+                }
+                else if (*srcPointer == 'b')
                 {
-                  i-=2;
-                } else
+                    i -= 2;
+                }
+                else
                 {
                     --srcPointer;
                 }
-            } else
+            }
+            else
             {
                 echo_data[i] = *srcPointer;
             }
         }
         echo_data[i] = '\0';
-        while (*(++srcPointer) == ' ');
+        while (*(++srcPointer) == ' ')
+            ;
 
         for (i = 0; *srcPointer != '\n' && *srcPointer != ' '; i++, srcPointer++)
         {
             file_name[i] = *srcPointer;
         }
-        return run_echo(file_name, echo_data);        
+        file_name[i] = '\0';
+        return run_echo(file_name, echo_data);
     }
-    
 
-	fprintf(stderr, "Unknown command '%s'\n", command);
-	return 0;
+    fprintf(stderr, "Unknown command '%s'\n", command);
+    return 0;
 }
 
 int main(int argc, char *argv[])
 {
-	char command[BUF_SIZE];
-	int ret;
+    char command[BUF_SIZE];
+    int ret;
 
-	while (1) {
-		ret = read(STDIN_FILENO, command, sizeof(command) - 1);
-		if (ret < 0) {
-			fprintf(stderr, "Failed to read command from stdin: %s\n",
-					strerror(errno));
-			goto on_error;
-		}
+    
+    
 
-		command[ret] = '\0';
-		ret = parse_command(command);
-		if (ret < 0)
-			goto on_error;
-	}
+    while (1)
+    {
+        ret = read(STDIN_FILENO, command, sizeof(command) - 1);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Failed to read command from stdin: %s\n",
+                    strerror(errno));
+            goto on_error;
+        }
 
-	return 0;
+        command[ret] = '\0';
+        ret = parse_command(command);
+        if (ret < 0)
+            goto on_error;
+    }
+
+    return 0;
 on_error:
-	return 1;
+    return 1;
 }
